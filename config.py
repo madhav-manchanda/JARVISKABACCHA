@@ -23,8 +23,12 @@ class Config:
     """
 
     # ── AI / Brain ─────────────────────────────────────────────────────────────
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "claude").lower()
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "") # Defaults are handled in brain.py if empty
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
-    CLAUDE_MODEL: str = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
 
     # ── STT / TTS ──────────────────────────────────────────────────────────────
     WHISPER_MODEL: str = os.getenv("WHISPER_MODEL", "medium")
@@ -81,12 +85,20 @@ class Config:
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
 
     # ── Required keys — app refuses to start if these are missing ──────────────
-    _REQUIRED: list[str] = ["ANTHROPIC_API_KEY", "JWT_SECRET", "JARVIS_PASSWORD"]
+    _REQUIRED: list[str] = ["JWT_SECRET", "JARVIS_PASSWORD"]
 
     # ── Optional keys — warn if missing, disable related feature gracefully ────
     _OPTIONAL: list[str] = ["SERPAPI_KEY", "ELEVENLABS_API_KEY", "REDIS_URL"]
 
     # ──────────────────────────────────────────────────────────────────────────
+
+    def __init__(self):
+        # Ensure all directories exist before anything else imports CONFIG
+        for attr in ["DOWNLOAD_FOLDER", "AUDIO_CACHE_FOLDER", "LOG_FILE", "DB_PATH"]:
+            path_str = getattr(self.__class__, attr, getattr(self, attr, ""))
+            if path_str:
+                path = Path(path_str)
+                (path if not path.suffix else path.parent).mkdir(parents=True, exist_ok=True)
 
     def validate(self) -> None:
         """
@@ -97,6 +109,19 @@ class Config:
         Prints a feature-availability summary to stdout.
         """
         missing = [k for k in self._REQUIRED if not getattr(self, k)]
+        
+        # Check LLM Provider requirement
+        if self.LLM_PROVIDER == "claude" and not self.ANTHROPIC_API_KEY:
+            missing.append("ANTHROPIC_API_KEY")
+        elif self.LLM_PROVIDER == "openai" and not self.OPENAI_API_KEY:
+            missing.append("OPENAI_API_KEY")
+        elif self.LLM_PROVIDER == "gemini" and not self.GEMINI_API_KEY:
+            missing.append("GEMINI_API_KEY")
+        elif self.LLM_PROVIDER == "groq" and not self.GROQ_API_KEY:
+            missing.append("GROQ_API_KEY")
+        elif self.LLM_PROVIDER not in ["claude", "openai", "gemini", "groq"]:
+            raise RuntimeError(f"Unsupported LLM_PROVIDER: {self.LLM_PROVIDER}")
+
         if missing:
             raise RuntimeError(
                 f"Missing required config keys: {missing}. "
@@ -108,12 +133,6 @@ class Config:
                 logger.warning(
                     "Optional config key '%s' not set — related feature disabled.", key
                 )
-
-        # Ensure all directories exist
-        for attr in ["DOWNLOAD_FOLDER", "AUDIO_CACHE_FOLDER"]:
-            Path(getattr(self, attr)).mkdir(parents=True, exist_ok=True)
-        Path(self.LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
-        Path(self.DB_PATH).parent.mkdir(parents=True, exist_ok=True)
 
         self._print_feature_summary()
 
@@ -147,6 +166,52 @@ class Config:
     def has_redis(self) -> bool:
         """Return True if a Redis URL is configured."""
         return bool(self.REDIS_URL)
+
+    # ── Multi-Key Management ───────────────────────────────────────────────────
+
+    def get_active_llm_key(self) -> str:
+        """Return the first available API key for the active provider."""
+        key_name = self._get_provider_key_name()
+        if not key_name:
+            return ""
+        
+        raw_val = getattr(self, key_name, "")
+        keys = [k.strip() for k in raw_val.split(",") if k.strip()]
+        return keys[0] if keys else ""
+
+    def mark_key_finished(self, exhausted_key: str) -> None:
+        """Remove an exhausted key, update .env, and log it."""
+        key_name = self._get_provider_key_name()
+        if not key_name:
+            return
+
+        raw_val = getattr(self, key_name, "")
+        keys = [k.strip() for k in raw_val.split(",") if k.strip()]
+        
+        if exhausted_key in keys:
+            keys.remove(exhausted_key)
+            new_val = ",".join(keys)
+            setattr(self, key_name, new_val)
+            
+            import dotenv
+            env_path = BASE_DIR / ".env"
+            dotenv.set_key(str(env_path), key_name, new_val)
+            
+            log_path = BASE_DIR / "logs" / "finished_keys.txt"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with log_path.open("a", encoding="utf-8") as f:
+                import datetime
+                ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                f.write(f"[{ts}] [{self.LLM_PROVIDER}] {exhausted_key}\n")
+                
+            logger.warning("API key exhausted for %s! Switched to next key.", self.LLM_PROVIDER)
+
+    def _get_provider_key_name(self) -> str:
+        if self.LLM_PROVIDER == "openai": return "OPENAI_API_KEY"
+        if self.LLM_PROVIDER == "gemini": return "GEMINI_API_KEY"
+        if self.LLM_PROVIDER == "groq": return "GROQ_API_KEY"
+        if self.LLM_PROVIDER == "claude": return "ANTHROPIC_API_KEY"
+        return ""
 
 
 # Global singleton — imported as `from config import CONFIG`

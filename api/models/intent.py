@@ -41,6 +41,7 @@ class JarvisResponse(BaseModel):
     response_audio_url: Optional[str] = Field(None, description="URL to the TTS audio file")
     execution_target: str = Field("server", description="'server' or 'device'")
     intent: Optional[Intent] = Field(None, description="Structured intent for Android execution")
+    follow_up_actions: list[Intent] = Field(default_factory=list, description="Sequential actions to execute after primary intent")
     data: Optional[dict[str, Any]] = Field(None, description="Extra data from server-side actions")
     error: Optional[str] = None
     code: Optional[str] = None

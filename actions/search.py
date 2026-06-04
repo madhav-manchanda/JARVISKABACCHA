@@ -143,7 +143,6 @@ def _summarise(query: str, results: list[dict], scraped: str, language: str) -> 
         A 2–4 sentence summary in the target language.
     """
     try:
-        import anthropic  # type: ignore[import]
         snippets = "\n".join(f"- {r['title']}: {r['snippet']}" for r in results[:5])
         prompt = (
             f"User searched for: '{query}'\n\n"
@@ -152,13 +151,8 @@ def _summarise(query: str, results: list[dict], scraped: str, language: str) -> 
             f"Give a helpful 2-4 sentence answer in language code '{language}'. "
             "Be direct and informative. Do not mention sources."
         )
-        client = anthropic.Anthropic(api_key=CONFIG.ANTHROPIC_API_KEY)
-        resp = client.messages.create(
-            model=CONFIG.CLAUDE_MODEL,
-            max_tokens=350,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return resp.content[0].text.strip()
+        from brain import call_llm
+        return call_llm([{"role": "user", "content": prompt}], max_tokens=350).strip()
     except Exception as exc:
         logger.warning("Claude summarisation failed: %s", exc)
         return results[0]["snippet"] if results else "No results found."

@@ -1,1 +1,8 @@
 .aider*
+.env
+__pycache__/
+*.pyc
+audio_cache/
+data/*.db
+logs/
+downloads/

@@ -55,19 +55,14 @@ def _generate_dork(user_intent: str) -> str:
     Raises:
         Exception on Claude API failure.
     """
-    import anthropic  # type: ignore[import]
     prompt = (
         "You are an expert in Google Dorking. Given the user's goal, generate the most effective, "
         "precise Google Dork query string. Return ONLY the dork query — no explanation, no quotes, "
         "no markdown.\n\nUser goal: " + user_intent
     )
-    client = anthropic.Anthropic(api_key=CONFIG.ANTHROPIC_API_KEY)
-    resp = client.messages.create(
-        model=CONFIG.CLAUDE_MODEL,
-        max_tokens=150,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return resp.content[0].text.strip().strip('"').strip("'")
+    from brain import call_llm
+    response_text = call_llm([{"role": "user", "content": prompt}], max_tokens=150)
+    return response_text.strip().strip('"').strip("'")
 
 
 def _run_dork(dork_query: str, num: int = 5) -> list[dict]:

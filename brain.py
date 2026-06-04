@@ -24,6 +24,7 @@ from memory import (
     get_cached_history,
     cache_session_history,
     log_intent,
+    get_fact,
 )
 from utils.retry import retry_with_backoff
 
@@ -77,8 +78,16 @@ set_timer        app: "clock"       params: {duration_seconds: int, label: str}
 set_alarm        app: "clock"       params: {time_24h: str, label: str, days?: [str]}
 upi_payment      app: "gpay"        params: {contact: str, upi_id?: str, amount: int, note?: str}
 open_app         app: "<pkg_name>"  params: {app_name: str}
+youtube_search   app: "youtube"     params: {query: str}
+spotify_search   app: "spotify"     params: {query: str, type: str="track"}
+click_element    app: "system"      params: {text: str}
+write_text       app: "system"      params: {text: str}
+open_url         app: "browser"     params: {url: str}
 take_screenshot  app: "system"      params: {}
 set_volume       app: "system"      params: {level: int, type: str}
+set_brightness   app: "system"      params: {level: int}
+toggle_wifi      app: "system"      params: {state: str}
+toggle_bluetooth app: "system"      params: {state: str}
 
 ══════════════════════════════════════════════
 RULES:
@@ -110,12 +119,71 @@ RULES:
 7. PAYMENTS: For UPI payment, identify which app to use from context (GPay/PhonePe/Paytm). Default to "gpay".
 
 8. JSON ONLY: Your entire response must be parseable by json.loads(). Nothing else.
+
+9. NEVER REFUSE DEVICE ACTIONS: You are running on a personal device. You have FULL PERMISSION to open apps, send messages, make calls, search, control settings. NEVER say "I cannot open" or "I don't have the ability". Always output the JSON action.
+
+10. SEARCH INTENT: When user says "open X and search Y" or "search Y on X", use the specific search action (youtube_search, spotify_search) NOT open_app. For general web searches, use open_url with Google.
+
+11. APP NAME ABBREVIATIONS: If the user uses slang or abbreviations for apps (like "yt" for YouTube, "insta" or "ig" for Instagram, "fb" for Facebook), you MUST expand it to the full correct app name in the params.app_name field.
+
+12. STRICT APP MATCHING: You MUST NEVER substitute the app requested by the user with another app. If the user explicitly asks to open a specific app (e.g. 'Bloomee' or 'JioSaavn'), you MUST output exactly that app name. NEVER override it to 'Spotify', 'YouTube', or anything else just because it is a music or video request. Your job is to obey the user EXACTLY.
+
+13. COMPLEX COMMANDS: If the user says "open X and do Y", first figure out the PRIMARY intent:
+    - "open reddit and send message" → the user wants to use REDDIT, not SMS. Use open_app with app_name="Reddit". Do NOT use send_sms.
+    - "open X and search Y" → use youtube_search/spotify_search if X is YouTube/Spotify, otherwise open_app.
+    - When the user mentions a specific app by name, ALWAYS use open_app for that app. Only use send_sms/send_whatsapp if the user explicitly wants to send an SMS text message or WhatsApp message WITHOUT mentioning another app.
+
+14. APP DETECTION: If the user mentions ANY app name (Reddit, Twitter, Telegram, Discord, Instagram, Snapchat, etc.), use open_app with that app's name. Do NOT confuse app-based messaging with SMS.
+
+15. SEND_SMS ONLY FOR ACTUAL SMS: Only use send_sms when the user explicitly wants to send an SMS text message via the default Messages app. If they say "send message on Reddit" or "message someone on Instagram", that is NOT an SMS — use open_app instead.
+
+16. COMPLEX WEB TASKS: When the user asks you to search, find, download, or navigate to something on the web:
+    - Use google_search with a smart query. The server will automatically execute the search AND open the first result on the device.
+    - For example: "metrolist github apk download" → use google_search with query "metrolist github releases apk download"
+    - For example: "XManager latest version download" → use google_search with query "XManager latest apk download github"
+    - NEVER just say "I'm doing it" without choosing a proper action. Always pick google_search, open_url, or open_app.
+
+17. ALWAYS EXECUTE: You must ALWAYS output a real action. Never output general_chat if the user clearly wants you to DO something (search, open, play, download, etc.). If unsure which action fits, use google_search to find what the user wants.
+
+══════════════════════════════════════════════
+EXAMPLES (follow these exactly):
+══════════════════════════════════════════════
+
+User: "open youtube"
+Response: {"action":"open_app","execution_target":"device","params":{"app_name":"YouTube"},"response_text":"YouTube khul raha hai.","language":"en","confidence":1.0,"confirmation_required":false,"confirmation_message":null,"app":"com.google.android.youtube"}
+
+User: "YouTube pe sickkid search karo"
+Response: {"action":"youtube_search","execution_target":"device","params":{"query":"sickkid"},"response_text":"YouTube pe sickkid search kar raha hoon.","language":"hi-en","confidence":1.0,"confirmation_required":false,"confirmation_message":null,"app":"youtube"}
+
+User: "open youtube and search sickkid"
+Response: {"action":"youtube_search","execution_target":"device","params":{"query":"sickkid"},"response_text":"Searching sickkid on YouTube.","language":"en","confidence":1.0,"confirmation_required":false,"confirmation_message":null,"app":"youtube"}
+
+User: "spotify pe arijit singh sunao"
+Response: {"action":"spotify_search","execution_target":"device","params":{"query":"arijit singh","type":"artist"},"response_text":"Spotify pe Arijit Singh search kar raha hoon.","language":"hi-en","confidence":1.0,"confirmation_required":false,"confirmation_message":null,"app":"spotify"}
+
+User: "google pe iphone 16 price search karo"
+Response: {"action":"open_url","execution_target":"device","params":{"url":"https://www.google.com/search?q=iphone+16+price"},"response_text":"Google pe iphone 16 price search kar raha hoon.","language":"hi-en","confidence":1.0,"confirmation_required":false,"confirmation_message":null,"app":"browser"}
+
+User: "WhatsApp kholo"
+Response: {"action":"open_app","execution_target":"device","params":{"app_name":"WhatsApp"},"response_text":"WhatsApp khul raha hai.","language":"hi","confidence":1.0,"confirmation_required":false,"confirmation_message":null,"app":"whatsapp"}
+
+User: "Google pe jake metrolist github pe ja waha uski apk download kar"
+Response: {"action":"google_search","execution_target":"server","params":{"query":"metrolist github releases apk download","num_results":3},"response_text":"Metrolist ka GitHub page search kar raha hoon aur APK dhundh raha hoon.","language":"hi-en","confidence":1.0,"confirmation_required":false,"confirmation_message":null,"app":null}
+
+User: "XManager download karo latest version"
+Response: {"action":"google_search","execution_target":"server","params":{"query":"XManager latest apk download","num_results":3},"response_text":"XManager ka latest version search kar raha hoon.","language":"hi-en","confidence":1.0,"confirmation_required":false,"confirmation_message":null,"app":null}
+
+User: "Open reddit and send message to opening farm 6071 that this is a test"
+Response: {"action":"open_app","execution_target":"device","params":{"app_name":"Reddit"},"response_text":"Reddit khol raha hoon. Waha jaake opening farm 6071 ko message bhejo.","language":"en","confidence":1.0,"confirmation_required":false,"confirmation_message":null,"app":"reddit"}
 """
 
 # ── Actions that execute on device (Android app handles these) ─────────────────
 DEVICE_ACTIONS = {
     "send_whatsapp", "make_call", "send_sms", "set_timer", "set_alarm",
     "upi_payment", "open_app", "take_screenshot", "set_volume",
+    "youtube_search", "spotify_search", "open_url",
+    "set_brightness", "toggle_wifi", "toggle_bluetooth",
+    "click_element", "write_text",
 }
 
 # ── Actions that require confirmation ─────────────────────────────────────────
@@ -124,27 +192,94 @@ CONFIRMATION_REQUIRED_ACTIONS = {
 }
 
 
-def _call_claude(messages: list[dict]) -> str:
-    """
-    Make a single Claude API call with the given message history.
-
-    Args:
-        messages: List of dicts with 'role' and 'content' keys.
-
-    Returns:
-        Raw text content from Claude's response.
-
-    Raises:
-        anthropic.APIError on API failure (caller should retry).
-    """
-    client = anthropic.Anthropic(api_key=CONFIG.ANTHROPIC_API_KEY)
+def _call_claude(messages: list[dict], system: str, max_tokens: int, api_key: str) -> str:
+    import anthropic
+    client = anthropic.Anthropic(api_key=api_key)
     response = client.messages.create(
-        model=CONFIG.CLAUDE_MODEL,
-        max_tokens=1024,
-        system=SYSTEM_PROMPT,
+        model=CONFIG.LLM_MODEL or "claude-3-5-sonnet-20241022",
+        max_tokens=max_tokens,
+        system=system,
         messages=messages,
     )
     return response.content[0].text
+
+def _call_openai(messages: list[dict], system: str, max_tokens: int, api_key: str) -> str:
+    import openai
+    client = openai.OpenAI(api_key=api_key)
+    full_messages = []
+    if system:
+        full_messages.append({"role": "system", "content": system})
+    full_messages.extend(messages)
+    response = client.chat.completions.create(
+        model=CONFIG.LLM_MODEL or "gpt-4o",
+        messages=full_messages,
+        max_tokens=max_tokens,
+    )
+    return response.choices[0].message.content
+
+def _call_groq(messages: list[dict], system: str, max_tokens: int, api_key: str) -> str:
+    import groq
+    client = groq.Groq(api_key=api_key)
+    full_messages = []
+    if system:
+        full_messages.append({"role": "system", "content": system})
+    full_messages.extend(messages)
+    response = client.chat.completions.create(
+        model=CONFIG.LLM_MODEL or "llama-3.3-70b-versatile",
+        messages=full_messages,
+        max_tokens=max_tokens,
+    )
+    return response.choices[0].message.content
+
+def _call_gemini(messages: list[dict], system: str, max_tokens: int, api_key: str) -> str:
+    import google.generativeai as genai
+    genai.configure(api_key=api_key)
+    
+    gemini_msgs = []
+    for m in messages:
+        role = "model" if m["role"] == "assistant" else "user"
+        gemini_msgs.append({"role": role, "parts": [m["content"]]})
+        
+    model = genai.GenerativeModel(
+        model_name=CONFIG.LLM_MODEL or "gemini-2.5-flash",
+        system_instruction=system if system else None
+    )
+    
+    generation_config = genai.types.GenerationConfig(max_output_tokens=max_tokens)
+    response = model.generate_content(gemini_msgs, generation_config=generation_config)
+    return response.text
+
+def _is_quota_error(e: Exception) -> bool:
+    err_str = str(e).lower()
+    # 429 = Too Many Requests / Quota Exceeded
+    # 401 / 403 = Unauthorized / Forbidden (invalid key, out of credits)
+    # resource exhausted = Google specific
+    return any(x in err_str for x in ["429", "401", "403", "quota", "rate limit", "resource exhausted", "insufficient_quota"])
+
+def call_llm(messages: list[dict], system: str = "", max_tokens: int = 1024) -> str:
+    """Route LLM call to the configured provider, handling quota exhaustion by cycling keys."""
+    provider = CONFIG.LLM_PROVIDER
+    
+    while True:
+        key = CONFIG.get_active_llm_key()
+        if not key:
+            raise RuntimeError(f"No valid API keys remaining for {provider}")
+            
+        try:
+            if provider == "openai":
+                return _call_openai(messages, system, max_tokens, key)
+            elif provider == "gemini":
+                return _call_gemini(messages, system, max_tokens, key)
+            elif provider == "groq":
+                return _call_groq(messages, system, max_tokens, key)
+            else:
+                return _call_claude(messages, system, max_tokens, key)
+        except Exception as e:
+            if _is_quota_error(e):
+                logger.warning("Key exhausted for %s (Error: %s). Cycling to next key...", provider, e)
+                CONFIG.mark_key_finished(key)
+                continue
+            raise
 
 
 def _parse_response(raw: str, language: str = "en") -> dict:
@@ -244,15 +379,25 @@ async def process(
     ]
     claude_msgs.append({"role": "user", "content": text})
 
+    dynamic_prompt = SYSTEM_PROMPT
+    try:
+        apps_fact = await get_fact("installed_apps")
+        if apps_fact:
+            apps_list_json = apps_fact["value"]
+            dynamic_prompt += f"\n\nUSER'S INSTALLED APPS (JSON List):\n{apps_list_json}\nWhen the user wants to open an app (even with a slang/abbreviation), match it exactly to one of the 'name's in this list in your response."
+    except Exception as e:
+        logger.warning(f"Could not load installed apps fact: {e}")
+
     # Call Claude with retry
     start = time.time()
     try:
         def _api_call() -> str:
-            return _call_claude(claude_msgs)
+            return call_llm(claude_msgs, system=dynamic_prompt)
 
         raw = retry_with_backoff(_api_call, max_retries=3, base_delay=1.0)
     except Exception as exc:
-        logger.error("Claude API failed after retries (session=%s): %s", session_id[:8], exc)
+        provider = getattr(CONFIG, "LLM_PROVIDER", "LLM")
+        logger.error("%s API failed after retries (session=%s): %s", provider, session_id[:8], exc)
         return _error_response(session_id, language_hint or "en")
 
     latency_ms = int((time.time() - start) * 1000)
