@@ -6,3 +6,8 @@ audio_cache/
 data/*.db
 logs/
 downloads/
+aider/
+venv/
+__pycache__/
+*.pyc
+.env
