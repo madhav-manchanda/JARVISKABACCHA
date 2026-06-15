@@ -14,6 +14,7 @@ class TextCommandRequest(BaseModel):
         default_factory=lambda: uuid.uuid4().hex,
         description="Session identifier — generated automatically if not provided",
     )
+    deep_search: bool = Field(False, description="Flag to enable God-Mode deep searching")
 
     @field_validator("text")
     @classmethod

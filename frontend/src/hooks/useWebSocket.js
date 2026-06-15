@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
 export const useWebSocket = (sessionId) => {
@@ -7,19 +8,23 @@ export const useWebSocket = (sessionId) => {
   const [status, setStatus] = useState('Disconnected');
   const [messages, setMessages] = useState([]);
 
-  useEffect(() => {
+  const wsRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
+
+  const connect = useCallback(() => {
     if (!token || !sessionId) return;
 
-    // Use current host, assuming the FastAPI backend runs on the same host but port 8000
-    // Adjust logic if needed based on environment
+    // Vite proxy forwards /ws to backend. Use same host as the page.
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname === 'localhost' ? 'localhost:8000' : window.location.host;
-    
-    const wsUrl = `${protocol}//${host}/ws/${sessionId}?token=${token}`;
+    const wsUrl = `${protocol}//${window.location.host}/ws/${sessionId}?token=${token}`;
     const websocket = new WebSocket(wsUrl);
 
     websocket.onopen = () => {
       setStatus('Connected');
+      // Clear any pending reconnects
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
     };
 
     websocket.onmessage = (event) => {
@@ -33,6 +38,18 @@ export const useWebSocket = (sessionId) => {
 
     websocket.onclose = () => {
       setStatus('Disconnected');
+      
+      // Check if token expired by pinging health. The interceptor in main.jsx will handle 401s.
+      axios.get('/health', { headers: { Authorization: `Bearer ${token}` } })
+        .then(() => {
+          // Token is fine, backend just dropped us or network blip. Reconnect in 3s.
+          reconnectTimeoutRef.current = setTimeout(connect, 3000);
+        })
+        .catch(() => {
+          // If it fails due to auth, main.jsx interceptor reloads the page.
+          // If it fails due to server down, still try to reconnect.
+          reconnectTimeoutRef.current = setTimeout(connect, 5000);
+        });
     };
 
     websocket.onerror = (error) => {
@@ -41,11 +58,21 @@ export const useWebSocket = (sessionId) => {
     };
 
     setWs(websocket);
+    wsRef.current = websocket;
+  }, [token, sessionId]);
+
+  useEffect(() => {
+    connect();
 
     return () => {
-      websocket.close();
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
     };
-  }, [token, sessionId]);
+  }, [connect]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);

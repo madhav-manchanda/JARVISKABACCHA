@@ -4,6 +4,15 @@ Sets up routes, middleware, static file serving, and WebSockets.
 """
 
 import logging
+import os
+import sys
+
+# Force UTF-8 output on Windows (fixes cp1252 crashes with unicode chars)
+os.environ.setdefault('PYTHONUTF8', '1')
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if sys.stderr.encoding != 'utf-8':
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -26,8 +35,8 @@ logging.basicConfig(
     level=logging.INFO if not CONFIG.DEBUG else logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(CONFIG.LOG_FILE),
+        logging.StreamHandler(stream=open(sys.stdout.fileno(), mode='w', encoding='utf-8', closefd=False, errors='replace')),
+        logging.FileHandler(CONFIG.LOG_FILE, encoding='utf-8'),
     ],
 )
 logger = logging.getLogger("jarvis")
@@ -106,6 +115,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ── Static Files ──────────────────────────────────────────────────────────────
 # Serve generated TTS audio files
 app.mount("/audio", StaticFiles(directory=CONFIG.AUDIO_CACHE_FOLDER), name="audio")
+app.mount("/downloads", StaticFiles(directory=CONFIG.DOWNLOAD_FOLDER), name="downloads")
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────

@@ -4,18 +4,17 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 
 import Login from './pages/Login';
 import CommandHub from './pages/CommandHub';
-import Sidebar from './components/Sidebar';
+import TopNav from './components/TopNav';
 
-import Memory from './pages/Memory';
-import Contacts from './pages/Contacts';
-import Health from './pages/Health';
+import HowToUse from './pages/HowToUse';
+import Homework from './pages/Homework';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return (
-    <div className="flex h-screen overflow-hidden bg-[#050508]">
-      <Sidebar />
+    <div className="flex flex-col h-screen overflow-hidden bg-jarvis-bg font-inter">
+      <TopNav />
       <main className="flex-1 overflow-hidden relative">
         {children}
       </main>
@@ -28,9 +27,8 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<ProtectedRoute><CommandHub /></ProtectedRoute>} />
-      <Route path="/memory" element={<ProtectedRoute><Memory /></ProtectedRoute>} />
-      <Route path="/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
-      <Route path="/health" element={<ProtectedRoute><Health /></ProtectedRoute>} />
+      <Route path="/guide" element={<ProtectedRoute><HowToUse /></ProtectedRoute>} />
+      <Route path="/homework" element={<ProtectedRoute><Homework /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

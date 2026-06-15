@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,15 +12,15 @@
 
 @layer components {
   .glass-card {
-    @apply bg-jarvis-bgSecondary/70 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.5)];
+    @apply bg-[#121212]/50 backdrop-blur-xl border border-white/5 rounded-[16px] shadow-[0_8px_30px_rgba(0,0,0,0.8)];
   }
   
   .glass-input {
-    @apply w-full bg-jarvis-bg/50 border border-white/10 rounded-lg px-4 py-3 text-jarvis-textMain focus:outline-none focus:border-jarvis-cyan focus:ring-1 focus:ring-jarvis-cyan transition-all;
+    @apply w-full bg-[#121212] border border-white/10 rounded-[16px] px-4 py-3 text-white focus:outline-none focus:border-[#a855f7] focus:ring-1 focus:ring-[#a855f7] transition-all;
   }
 
   .neon-button {
-    @apply px-6 py-3 rounded-lg bg-jarvis-cyan/10 text-jarvis-cyan border border-jarvis-cyan/30 hover:bg-jarvis-cyan/20 hover:border-jarvis-cyan/70 transition-all font-semibold tracking-wide flex items-center justify-center gap-2;
+    @apply px-6 py-3 rounded-[16px] bg-[#a855f7] text-white border-none hover:bg-[#8b5cf6] transition-all font-semibold tracking-wide flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(168,85,247,0.3)];
   }
 }
 
@@ -31,9 +33,9 @@
   background: rgba(10, 10, 15, 0.5); 
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 242, 254, 0.2); 
+  background: rgba(168, 85, 247, 0.2); 
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 242, 254, 0.4); 
+  background: rgba(168, 85, 247, 0.4); 
 }

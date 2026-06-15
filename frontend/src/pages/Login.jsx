@@ -32,9 +32,7 @@ const Login = () => {
     setError('');
     
     try {
-      // Pointing to local backend, adjust API base URL as needed
-      const host = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
-      const response = await axios.post(`${host}/auth/login`, {
+      const response = await axios.post(`/auth/login`, {
         username,
         password
       });

@@ -1,0 +1,28 @@
+=========================================
+Suggested Features for Jarvis VPS Core
+=========================================
+
+1. Academic & Study Suite (Homework 2.0)
+   - PDF Textbook Analyzer & Flashcards: Upload PDF study materials. Jarvis parses the text, extracts key definitions, and generates interactive flashcards with a spaced-repetition scheduler (stored in memory).
+   - Practice Quiz Generator: Jarvis generates custom multiple-choice or short-answer practice tests on any topic or uploaded document, grades your answers, and plots your performance over time.
+   - LaTeX Math Solver: Render step-by-step solutions for complex math, physics, or engineering equations with interactive LaTeX/KaTeX visualizations.
+
+2. Multi-Modal Vision & Screen Awareness
+   - Image Upload / Camera Feed: Add a drag-and-drop / screenshot-paste upload button to the Command Hub. Jarvis can perform OCR, transcribe handwritten notes, explain diagrams, or debug code from IDE screenshots.
+   - Visual Web Scraper: Jarvis uses a headless browser to capture screenshots of dynamically loaded websites, extracting text/information visually even when standard crawlers fail.
+
+3. VPS Management & Dev Dashboard
+   - Live System Resource Charts: Render real-time CPU, RAM, Disk, and Network bandwidth utilization using responsive charts (e.g., Recharts) directly on the front-end dashboard.
+   - Docker Container Control: View running containers, check logs, and restart containers (Redis, FastAPI, etc.) directly from a secure panel.
+   - Interactive File Explorer: View, download, rename, and delete files inside the `downloads/` directory directly from the browser.
+
+4. Personal Knowledge Base (RAG)
+   - Private Memory Indexing: Index uploaded files (text, markdown, PDFs) using SQLite Full-Text Search (FTS5) or a lightweight local vector library.
+   - Semantic Queries: Ask Jarvis questions about your uploaded documents (e.g., "What is the WiFi password from my hostel notes?").
+
+5. Automated Daily Routines & Schedulers
+   - Morning/Evening Briefings: Automatically trigger daily digests (weather, calendar events, system metrics, news) sent to your WhatsApp or spoken when you open the Command Hub.
+   - Background Cron Tasks: Set automated conditions, e.g., "Check price of product X every 6 hours and WhatsApp me if it drops below 2000 INR."
+
+6. Continuous Voice Mode (Duplex Audio)
+   - Live Voice Call: Establish a continuous WebRTC/WebSocket audio stream for natural, real-time voice conversations with Jarvis that support speech interruption handling.

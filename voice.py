@@ -231,7 +231,7 @@ def _speak_pyttsx3(text: str) -> Optional[str]:
         out = Path(CONFIG.AUDIO_CACHE_FOLDER) / f"tts_{uuid.uuid4().hex}.wav"
         engine.save_to_file(text, str(out))
         engine.runAndWait()
-        logger.debug("TTS (pyttsx3) → %s", out.name)
+        logger.debug("TTS (pyttsx3) -> %s", out.name)
         return str(out)
     except ImportError:
         logger.warning("pyttsx3 not installed — TTS unavailable.")
@@ -268,7 +268,7 @@ def _speak_elevenlabs(text: str) -> Optional[str]:
         resp.raise_for_status()
         out = Path(CONFIG.AUDIO_CACHE_FOLDER) / f"tts_{uuid.uuid4().hex}.mp3"
         out.write_bytes(resp.content)
-        logger.debug("TTS (ElevenLabs) → %s", out.name)
+        logger.debug("TTS (ElevenLabs) -> %s", out.name)
         return str(out)
     except Exception as exc:
         logger.error("ElevenLabs TTS failed: %s — falling back to pyttsx3.", exc)

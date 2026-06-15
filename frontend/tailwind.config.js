@@ -7,18 +7,21 @@ export default {
     extend: {
       colors: {
         jarvis: {
-          bg: '#0A0A0F',
-          bgSecondary: '#12121A',
-          cyan: '#00F2FE',
-          blue: '#4FACFE',
-          accent: '#00F2FE',
+          bg: '#000000',           // Pure Black
+          bgSecondary: '#121212',  // Deep Charcoal
+          primary: '#a855f7',      // Electric Purple
+          cyan: '#a855f7',         // Alias cyan to primary for backwards compatibility
+          blue: '#a855f7',
+          secondary: '#10b981',    // Emerald Green
+          accent: '#a855f7',
           alert: '#F59E0B',
-          textMain: '#F3F4F6',
+          textMain: '#FFFFFF',
           textMuted: '#9CA3AF'
         }
       },
       fontFamily: {
-        sans: ['Inter', 'Outfit', 'sans-serif'],
+        sans: ['Inter', 'sans-serif'],
+        montserrat: ['Montserrat', 'sans-serif'],
         mono: ['Fira Code', 'monospace']
       }
     },

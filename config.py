@@ -46,7 +46,7 @@ class Config:
     # ── Security / Auth ────────────────────────────────────────────────────────
     JWT_SECRET: str = os.getenv("JWT_SECRET", "")
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "43200"))
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
     JARVIS_USERNAME: str = os.getenv("JARVIS_USERNAME", "admin")
     JARVIS_PASSWORD: str = os.getenv("JARVIS_PASSWORD", "")
@@ -148,9 +148,11 @@ class Config:
         print("\n" + "=" * 52)
         print("  Jarvis VPS — Feature Status")
         print("=" * 52)
-        for name, enabled in features.items():
-            status = "✓ ENABLED " if enabled else "✗ DISABLED"
+        def p(name: str, has_it: bool):
+            status = "[v]" if has_it else "[X]"
             print(f"  {status}  {name}")
+        for name, enabled in features.items():
+            p(name, enabled)
         print("=" * 52 + "\n")
 
     # ── Feature availability helpers ───────────────────────────────────────────

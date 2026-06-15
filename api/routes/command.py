@@ -30,9 +30,9 @@ async def command_text(
 ) -> Any:
     """
     Process a natural language text command.
-    Returns a structured intent JSON designed for Android execution.
+    Returns a structured intent JSON designed for Web execution.
     """
-    intent_data = await process(req.text, req.session_id)
+    intent_data = await process(req.text, req.session_id, deep_search=req.deep_search)
     
     follow_ups = []
     action = intent_data.get("action", "")
@@ -93,6 +93,36 @@ async def command_text(
                 intent_data["data"] = result
         except Exception as e:
             logger.warning("download_file pre-processing failed: %s", e)
+            
+    # If the AI chose google_dork, generate it and trigger confirmation
+    elif action == "google_dork":
+        try:
+            from actions.dork import google_dork
+            user_intent_str = params.get("user_intent", "")
+            dork_res = await google_dork(user_intent_str, req.session_id, deep_search=req.deep_search)
+            if dork_res.get("success"):
+                intent_data["confirmation_required"] = True
+                intent_data["confirmation_message"] = dork_res.get("message")
+                # Store the generated dork query in params so it can be passed back upon confirmation
+                intent_data["params"]["dork_query"] = dork_res.get("dork_query")
+            else:
+                intent_data["response_text"] = "Dork generation failed: " + dork_res.get("error", "")
+        except Exception as e:
+            logger.warning("google_dork generation failed: %s", e)
+            
+    # If the AI chose generate_image, generate it
+    elif action == "generate_image":
+        try:
+            from actions.image_gen import generate_image
+            prompt = params.get("prompt", "")
+            ratio = params.get("ratio", "square")
+            if prompt:
+                result = generate_image(prompt, ratio)
+                intent_data["data"] = {"image_url": result["image_url"]}
+                intent_data["response_text"] = result["message"]
+        except Exception as e:
+            logger.warning("generate_image failed: %s", e)
+            intent_data["response_text"] = "Sorry, I couldn't generate the image right now."
     
     resp = JarvisResponse(
         success=True,
@@ -102,6 +132,7 @@ async def command_text(
         execution_target=intent_data.get("execution_target", "server"),
         intent=intent_data,
         follow_up_actions=follow_ups,
+        data=intent_data.get("data")
     )
     
     # Generate TTS if response text exists
@@ -119,6 +150,7 @@ async def command_text(
 async def command_voice(
     audio: UploadFile = File(...),
     session_id: str = Form(None),
+    is_file_upload: bool = Form(False),
     username: str = Depends(get_current_user),
 ) -> Any:
     """
@@ -155,6 +187,37 @@ async def command_voice(
 
     # Transcribe
     audio_bytes = await audio.read()
+    # Try Shazam music recognition first on ALL audio (file upload or mic)
+    try:
+        from actions.music import recognize_song
+        song_info = await recognize_song(audio_bytes)
+        if song_info:
+            # Construct an immediate open_url response
+            url = song_info.get("youtube_url") or song_info.get("spotify_url")
+            if not url:
+                # Fallback if Shazam didn't return a direct link
+                import urllib.parse
+                url = f"https://www.youtube.com/results?search_query={urllib.parse.quote_plus(song_info['title'] + ' ' + song_info['artist'])}"
+            
+            intent = Intent(
+                action="open_url",
+                app="browser",
+                params={"url": url}
+            )
+            return JarvisResponse(
+                success=True,
+                session_id=session_id,
+                language="en",
+                response_text=f"I found {song_info['title']} by {song_info['artist']}! Opening it now.",
+                execution_target="device",
+                intent=intent,
+                follow_up_actions=[],
+                data={"song": song_info}
+            )
+    except Exception as e:
+        logger.error(f"Shazam recognition failed: {e}")
+
+    # Fallback to standard STT (Whisper) for spoken commands
     stt_result = transcribe_bytes(audio_bytes, suffix=ext or ".wav")
     
     text = stt_result.get("text", "")
@@ -179,6 +242,7 @@ async def command_voice(
         response_text=intent_data.get("response_text", ""),
         execution_target=intent_data.get("execution_target", "server"),
         intent=intent_data,
+        data=intent_data.get("data")
     )
     
     if resp.response_text:
@@ -198,8 +262,9 @@ async def command_confirm(
     """
     Handle user confirmation for sensitive actions.
     If the action was server-side (like dork or dangerous download), it executes it here.
-    If it was device-side (like upi_payment), this just logs it, and the Android app executes it locally.
+    If it was device-side, this just logs it, and the web app executes it locally.
     """
+
     if not req.confirmed:
         return JarvisResponse(
             success=True,
@@ -211,10 +276,21 @@ async def command_confirm(
     # Handle Dork confirmation
     if req.dork_query:
         result = await execute_confirmed_dork(req.dork_query, session_id=req.session_id)
+        if not result["success"] and result.get("code") == "FEATURE_UNAVAILABLE":
+            import urllib.parse
+            google_url = f"https://www.google.com/search?q={urllib.parse.quote_plus(req.dork_query)}"
+            return JarvisResponse(
+                success=True,
+                session_id=req.session_id,
+                response_text="SerpAPI is disabled. Opening Google Search in your browser directly.",
+                execution_target="device",
+                follow_up_actions=[Intent(action="open_url", app="browser", params={"url": google_url})]
+            )
+            
         return JarvisResponse(
             success=result["success"],
             session_id=req.session_id,
-            response_text="Search executed." if result["success"] else "Search failed.",
+            response_text="Search executed." if result["success"] else "Search failed: " + result.get("error", "Unknown error"),
             data=result,
             error=result.get("error")
         )
@@ -230,10 +306,28 @@ async def command_confirm(
         )
         
     # For device actions (UPI, WhatsApp), the VPS just acknowledges.
-    # Android app will see confirmed=True and proceed with AccessibilityService execution.
+    # Web app will see confirmed=True and proceed with execution.
     return JarvisResponse(
         success=True,
         session_id=req.session_id,
-        response_text="Confirmed. Executing now.",
-        execution_target="device"
+        response_text="Action executed locally.",
+        execution_target="server"
     )
+
+@router.post("/homework/generate")
+async def homework_generate(
+    reference_image: UploadFile = File(...),
+    text: str = Form(...),
+    username: str = Depends(get_current_user),
+) -> Any:
+    """
+    Analyze handwriting style from image, and generate text in that style.
+    """
+    try:
+        from actions.homework import process_homework
+        image_bytes = await reference_image.read()
+        result = await process_homework(image_bytes, text)
+        return result
+    except Exception as e:
+        logger.error(f"Homework generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

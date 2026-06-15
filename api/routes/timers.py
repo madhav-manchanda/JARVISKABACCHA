@@ -1,7 +1,6 @@
 """
 api/routes/timers.py — Read-only timer endpoints.
-In the new architecture, timers run on the Android device (via intents).
-These endpoints are placeholders or can be used if we ever implement server-side timers again.
+In the web-only architecture, timers are not actively managed by the backend.
 """
 
 from fastapi import APIRouter, Depends
@@ -16,10 +15,10 @@ router = APIRouter(tags=["Timers"])
 async def read_timers(username: str = Depends(get_current_user)) -> Any:
     """
     List active timers.
-    NOTE: Timers are now handled by the Android app. This endpoint returns empty.
+    NOTE: Timers are currently disabled in the web-only architecture.
     """
     return {
         "success": True, 
         "timers": [], 
-        "message": "Timers are handled on-device by the Android app."
+        "message": "Timers are currently disabled."
     }
